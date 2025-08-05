@@ -11,14 +11,15 @@
             align-items: center;
             justify-content: center;
             min-height: 100vh;
+            margin: 0;
         }
         #speedtest {
             background: white;
             padding: 2rem;
             border-radius: 12px;
-            box-shadow: 0 2px 12px #0001;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.1);
             text-align: center;
-            width: 300px;
+            width: 400px;
         }
         button {
             padding: 0.6rem 1.5rem;
@@ -29,13 +30,18 @@
             color: white;
             cursor: pointer;
             transition: background 0.3s;
+            margin-bottom: 1rem;
         }
         button:disabled {
             background: #aaa;
             cursor: not-allowed;
         }
+        button:hover:not(:disabled) {
+            background: #0056cc;
+        }
         h2 {
-            margin-bottom: 0.5rem;
+            margin-bottom: 1rem;
+            color: #333;
         }
         .result {
             margin-top: 1rem;
@@ -55,27 +61,140 @@
             background: #006eff;
             transition: width 0.2s;
         }
+        
+        /* Speedometer Styles */
+        #speedometer {
+            margin: 1.5rem 0;
+            position: relative;
+        }
+        
+        .speedometer-svg {
+            width: 250px;
+            height: 180px;
+            margin: 0 auto;
+            display: block;
+        }
+        
+        .gauge-bg {
+            fill: none;
+            stroke: #e0e0e0;
+            stroke-width: 12;
+        }
+        
+        .gauge-fill {
+            fill: none;
+            stroke: #006eff;
+            stroke-width: 12;
+            stroke-linecap: round;
+            transition: stroke-dasharray 0.3s ease;
+        }
+        
+        .gauge-needle {
+            stroke: #ff4444;
+            stroke-width: 3;
+            stroke-linecap: round;
+            transition: transform 0.3s ease;
+            transform-origin: 125px 140px;
+        }
+        
+        .gauge-center {
+            fill: #333;
+        }
+        
+        .gauge-text {
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            fill: #666;
+            text-anchor: middle;
+        }
+        
+        .speed-display {
+            font-size: 24px;
+            font-weight: bold;
+            fill: #333;
+            text-anchor: middle;
+        }
+        
+        .speed-unit {
+            font-size: 12px;
+            fill: #666;
+            text-anchor: middle;
+        }
     </style>
 </head>
 <body>
     <div id="speedtest">
         <h2>networker</h2>
         <button id="startBtn">Start Test</button>
+        
+        <div id="speedometer">
+            <svg class="speedometer-svg" viewBox="0 0 250 180">
+                <!-- Background arc -->
+                <path class="gauge-bg" d="M 40 140 A 85 85 0 0 1 210 140" stroke-dasharray="267" stroke-dashoffset="0"/>
+                
+                <!-- Speed arc -->
+                <path id="gaugeArc" class="gauge-fill" d="M 40 140 A 85 85 0 0 1 210 140" stroke-dasharray="267" stroke-dashoffset="267"/>
+                
+                <!-- Speed markers -->
+                <g class="gauge-text">
+                    <text x="40" y="150">0</text>
+                    <text x="70" y="100">25</text>
+                    <text x="125" y="70">50</text>
+                    <text x="180" y="100">75</text>
+                    <text x="210" y="150">100+</text>
+                </g>
+                
+                <!-- Needle -->
+                <line id="needle" class="gauge-needle" x1="125" y1="140" x2="125" y2="80" transform="rotate(-90 125 140)"/>
+                
+                <!-- Center dot -->
+                <circle class="gauge-center" cx="125" cy="140" r="6"/>
+                
+                <!-- Speed display -->
+                <text id="speedText" class="speed-display" x="125" y="160">0.00</text>
+                <text class="speed-unit" x="125" y="175">Mbps</text>
+            </svg>
+        </div>
+        
         <div id="progressBar"><div id="progressBarFill"></div></div>
         <div class="result" id="status"></div>
         <div class="result" id="speed"></div>
     </div>
+
     <script>
         const testFileUrl = "https://raw.githubusercontent.com/yaragirodev/networker/main/bin/5mb_file.bin";
         const startBtn = document.getElementById('startBtn');
         const statusDiv = document.getElementById('status');
         const speedDiv = document.getElementById('speed');
         const progressBarFill = document.getElementById('progressBarFill');
+        const needle = document.getElementById('needle');
+        const gaugeArc = document.getElementById('gaugeArc');
+        const speedText = document.getElementById('speedText');
 
         function formatSpeed(mbps) {
             return mbps >= 1 
                 ? mbps.toFixed(2) + " Mbps"
                 : (mbps * 1000 / 8).toFixed(2) + " KB/s";
+        }
+
+        function updateSpeedometer(mbps) {
+            // Clamp speed to 0-100 range for display
+            const displaySpeed = Math.min(mbps, 100);
+            
+            // Update needle rotation (-90 to 90 degrees)
+            const rotation = -90 + (displaySpeed / 100) * 180;
+            needle.style.transform = `rotate(${rotation}deg)`;
+            
+            // Update arc fill (267 is the total arc length)
+            const arcOffset = 267 - (displaySpeed / 100) * 267;
+            gaugeArc.style.strokeDashoffset = arcOffset;
+            
+            // Update speed text
+            speedText.textContent = mbps.toFixed(2);
+        }
+
+        function resetSpeedometer() {
+            updateSpeedometer(0);
         }
 
         async function runSpeedTest() {
@@ -84,6 +203,7 @@
             statusDiv.textContent = "Testing...";
             speedDiv.textContent = '';
             progressBarFill.style.width = '0';
+            resetSpeedometer();
 
             try {
                 const startTime = performance.now();
@@ -91,14 +211,30 @@
                 const reader = response.body.getReader();
                 const contentLength = +response.headers.get("Content-Length");
                 let received = 0;
+                let lastUpdateTime = startTime;
 
                 while (true) {
                     const { done, value } = await reader.read();
                     if (done) break;
+                    
                     received += value.length;
+                    const currentTime = performance.now();
+                    
+                    // Update progress bar
                     if (contentLength) {
                         const percent = (received / contentLength) * 100;
                         progressBarFill.style.width = percent.toFixed(2) + "%";
+                    }
+                    
+                    // Update speedometer in real-time (every 100ms)
+                    if (currentTime - lastUpdateTime > 100) {
+                        const duration = (currentTime - startTime) / 1000;
+                        if (duration > 0.1) { // Avoid division by very small numbers
+                            const bitsLoaded = received * 8;
+                            const mbps = (bitsLoaded / duration) / (1024 * 1024);
+                            updateSpeedometer(mbps);
+                        }
+                        lastUpdateTime = currentTime;
                     }
                 }
 
@@ -107,11 +243,16 @@
                 const bitsLoaded = received * 8;
                 const mbps = (bitsLoaded / duration) / (1024 * 1024);
 
+                // Final update
+                updateSpeedometer(mbps);
+                
                 statusDiv.textContent = `Downloaded ${(received / 1024 / 1024).toFixed(2)} MB in ${duration.toFixed(2)} seconds.`;
                 speedDiv.textContent = `Speed: ${formatSpeed(mbps)}`;
+                
             } catch (e) {
                 statusDiv.textContent = '❌ Error during speed test.';
                 speedDiv.textContent = '';
+                resetSpeedometer();
             } finally {
                 startBtn.disabled = false;
                 startBtn.textContent = 'Start Test';
@@ -119,6 +260,9 @@
         }
 
         startBtn.addEventListener('click', runSpeedTest);
+        
+        // Initialize speedometer
+        resetSpeedometer();
     </script>
 </body>
 </html>
