@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>networker</title>
     <style>
         body {
@@ -12,14 +13,16 @@
             justify-content: center;
             min-height: 100vh;
             margin: 0;
+            padding: 20px;
         }
         #speedtest {
             background: white;
-            padding: 2rem;
+            padding: 1.5rem;
             border-radius: 12px;
             box-shadow: 0 2px 12px rgba(0,0,0,0.1);
             text-align: center;
-            width: 400px;
+            width: 100%;
+            max-width: 500px;
         }
         button {
             padding: 0.6rem 1.5rem;
@@ -31,6 +34,8 @@
             cursor: pointer;
             transition: background 0.3s;
             margin-bottom: 1rem;
+            width: 100%;
+            max-width: 200px;
         }
         button:disabled {
             background: #aaa;
@@ -42,10 +47,11 @@
         h2 {
             margin-bottom: 1rem;
             color: #333;
+            font-size: 1.5rem;
         }
         .result {
             margin-top: 1rem;
-            font-size: 1.1rem;
+            font-size: 1rem;
         }
         #progressBar {
             height: 8px;
@@ -62,15 +68,15 @@
             transition: width 0.2s;
         }
         
-        /* Speedometer Styles */
         #speedometer {
             margin: 1.5rem 0;
             position: relative;
         }
         
         .speedometer-svg {
-            width: 250px;
-            height: 180px;
+            width: 100%;
+            max-width: 250px;
+            height: auto;
             margin: 0 auto;
             display: block;
         }
@@ -103,22 +109,58 @@
         
         .gauge-text {
             font-family: Arial, sans-serif;
-            font-size: 14px;
+            font-size: 12px;
             fill: #666;
             text-anchor: middle;
         }
         
         .speed-display {
-            font-size: 24px;
+            font-size: 22px;
             font-weight: bold;
             fill: #333;
             text-anchor: middle;
         }
         
         .speed-unit {
-            font-size: 12px;
+            font-size: 11px;
             fill: #666;
             text-anchor: middle;
+        }
+
+        @media (max-width: 480px) {
+            #speedtest {
+                padding: 1rem;
+            }
+            h2 {
+                font-size: 1.3rem;
+            }
+            button {
+                font-size: 1rem;
+                padding: 0.5rem 1rem;
+            }
+            .speed-display {
+                font-size: 20px;
+            }
+        }
+
+        @media (min-width: 1200px) {
+            #speedtest {
+                max-width: 600px;
+                padding: 2.5rem;
+            }
+            .speedometer-svg {
+                max-width: 300px;
+            }
+            h2 {
+                font-size: 2rem;
+            }
+            button {
+                font-size: 1.2rem;
+                max-width: 250px;
+            }
+            .speed-display {
+                font-size: 28px;
+            }
         }
     </style>
 </head>
@@ -129,13 +171,8 @@
         
         <div id="speedometer">
             <svg class="speedometer-svg" viewBox="0 0 250 180">
-                <!-- Background arc -->
                 <path class="gauge-bg" d="M 40 140 A 85 85 0 0 1 210 140" stroke-dasharray="267" stroke-dashoffset="0"/>
-                
-                <!-- Speed arc -->
                 <path id="gaugeArc" class="gauge-fill" d="M 40 140 A 85 85 0 0 1 210 140" stroke-dasharray="267" stroke-dashoffset="267"/>
-                
-                <!-- Speed markers -->
                 <g class="gauge-text">
                     <text x="40" y="150">0</text>
                     <text x="70" y="100">25</text>
@@ -143,14 +180,8 @@
                     <text x="180" y="100">75</text>
                     <text x="210" y="150">100+</text>
                 </g>
-                
-                <!-- Needle -->
                 <line id="needle" class="gauge-needle" x1="125" y1="140" x2="125" y2="80" transform="rotate(-90 125 140)"/>
-                
-                <!-- Center dot -->
                 <circle class="gauge-center" cx="125" cy="140" r="6"/>
-                
-                <!-- Speed display -->
                 <text id="speedText" class="speed-display" x="125" y="160">0.00</text>
                 <text class="speed-unit" x="125" y="175">Mbps</text>
             </svg>
@@ -178,18 +209,11 @@
         }
 
         function updateSpeedometer(mbps) {
-            // Clamp speed to 0-100 range for display
             const displaySpeed = Math.min(mbps, 100);
-            
-            // Update needle rotation (-90 to 90 degrees)
             const rotation = -90 + (displaySpeed / 100) * 180;
             needle.style.transform = `rotate(${rotation}deg)`;
-            
-            // Update arc fill (267 is the total arc length)
             const arcOffset = 267 - (displaySpeed / 100) * 267;
             gaugeArc.style.strokeDashoffset = arcOffset;
-            
-            // Update speed text
             speedText.textContent = mbps.toFixed(2);
         }
 
@@ -220,16 +244,14 @@
                     received += value.length;
                     const currentTime = performance.now();
                     
-                    // Update progress bar
                     if (contentLength) {
                         const percent = (received / contentLength) * 100;
                         progressBarFill.style.width = percent.toFixed(2) + "%";
                     }
                     
-                    // Update speedometer in real-time (every 100ms)
                     if (currentTime - lastUpdateTime > 100) {
                         const duration = (currentTime - startTime) / 1000;
-                        if (duration > 0.1) { // Avoid division by very small numbers
+                        if (duration > 0.1) {
                             const bitsLoaded = received * 8;
                             const mbps = (bitsLoaded / duration) / (1024 * 1024);
                             updateSpeedometer(mbps);
@@ -243,7 +265,6 @@
                 const bitsLoaded = received * 8;
                 const mbps = (bitsLoaded / duration) / (1024 * 1024);
 
-                // Final update
                 updateSpeedometer(mbps);
                 
                 statusDiv.textContent = `Downloaded ${(received / 1024 / 1024).toFixed(2)} MB in ${duration.toFixed(2)} seconds.`;
@@ -260,8 +281,6 @@
         }
 
         startBtn.addEventListener('click', runSpeedTest);
-        
-        // Initialize speedometer
         resetSpeedometer();
     </script>
 </body>
